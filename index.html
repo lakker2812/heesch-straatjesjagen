@@ -713,7 +713,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .toast span{background:var(--ink);color:#fff;padding:11px 20px;border-radius:999px;font-weight:600;box-shadow:var(--shadow);text-align:center}
 
   .overlay{position:absolute;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;background:rgba(35,48,40,.55);backdrop-filter:blur(4px);padding:16px}
-  .panel{background:var(--card);border-radius:22px;box-shadow:var(--shadow);padding:28px;max-width:440px;width:100%;text-align:center}
+  .panel{background:var(--card);border-radius:22px;box-shadow:var(--shadow);padding:28px;max-width:660px;width:100%;text-align:center}
   .panel h2{margin:0 0 6px;font-size:28px;font-weight:800}
   .panel p{margin:0 0 18px;color:var(--muted)}
   .panel .winner-title{font-size:clamp(42px,10vw,68px);letter-spacing:.04em;color:var(--green);margin-bottom:2px}
@@ -724,10 +724,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .savebox .save-status{min-height:20px;margin:8px 0 0;font-size:13px;color:var(--muted)}
   .savebox .save-status.ok{color:var(--green);font-weight:700}
   .savebox .save-status.err{color:var(--red)}
+  .save-trigger{display:block;width:auto;margin:18px auto 0}
+  .save-dialog-subtitle{font-size:20px;font-weight:500;color:var(--muted);margin:0 0 18px}
+  .save-dialog-input{box-sizing:border-box;width:100%;padding:15px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;font:inherit;font-size:22px}
+  .save-dialog-input:focus{outline:2px solid var(--green);outline-offset:1px}
+  .save-dialog-actions{display:flex;gap:14px;justify-content:center;margin-top:70px}
+  .save-dialog-actions .btn{min-width:150px}
   .scoreboard-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:0 0 14px}
   .scoreboard-tabs button{font:inherit;font-weight:700;padding:9px 7px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
   .scoreboard-tabs button.active{background:var(--green);color:#fff;border-color:var(--green)}
-  .scoreboard-list{max-height:390px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .scoreboard-list{max-height:calc(100vh - 280px);overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
   .score-row{display:grid;grid-template-columns:34px minmax(0,1fr) 48px 76px;gap:7px;align-items:center;padding:9px 10px;border-bottom:1px solid #edf0ed;font-size:13px;text-align:left}
   .score-row:last-child{border-bottom:0}
   .score-row .rank{font-weight:800;text-align:center}
@@ -892,8 +898,7 @@ async function loadOnlineScores(mode) {
       .select("player_name,mode,score,created_at")
       .eq("mode", mode)
       .order("score", { ascending: false })
-      .order("created_at", { ascending: true })
-      .limit(10),
+      .order("created_at", { ascending: true }),
     7000
   );
   if (error) throw error;
@@ -912,21 +917,34 @@ function showSaveBox() {
   const score = state?.score ?? 0;
   if (!mode) return;
 
-  const box = document.createElement("div");
-  box.className = "savebox";
-  box.innerHTML = `
-    <label for="playerName">Naam voor het online scorebord</label>
-    <input id="playerName" maxlength="30" placeholder="Vul je naam in…" autocomplete="name">
-    <div class="row" style="margin-top:9px">
-      <button class="btn" id="saveScoreBtn">Score opslaan</button>
+  const modeNames = { easy: "Easy", normal: "Normal", hard: "Hard" };
+  const modeName = modeNames[mode] || mode;
+
+  $("panel").innerHTML = `
+    <h2>Score opslaan</h2>
+    <p class="save-dialog-subtitle">${modeName} · ${score} goed</p>
+    <input
+      class="save-dialog-input"
+      id="playerName"
+      maxlength="30"
+      placeholder="Jouw naam"
+      autocomplete="name"
+      aria-label="Jouw naam"
+    >
+    <div class="save-dialog-actions">
+      <button class="btn ghost" id="cancelSave">Annuleren</button>
+      <button class="btn" id="saveScoreBtn">Opslaan</button>
     </div>
     <div class="save-status" id="saveStatus"></div>`;
-  const actions = $("panel").querySelector(".row");
-  $("panel").insertBefore(box, actions);
+
+  $("overlay").style.display = "flex";
 
   const input = $("playerName");
   const button = $("saveScoreBtn");
+  const cancel = $("cancelSave");
   const status = $("saveStatus");
+
+  cancel.onclick = renderGameOver;
 
   button.onclick = async () => {
     const name = input.value.trim();
@@ -938,23 +956,29 @@ function showSaveBox() {
     }
 
     button.disabled = true;
+    cancel.disabled = true;
     input.disabled = true;
     status.textContent = "Score opslaan…";
     status.className = "save-status";
 
     try {
       await saveOnlineScore(name, mode, score);
-      status.textContent = "✓ Score opgeslagen in het online scorebord!";
+      status.textContent = "✓ Score opgeslagen!";
       status.className = "save-status ok";
       button.textContent = "Opgeslagen";
+      setTimeout(renderGameOver, 700);
     } catch (e) {
       console.warn("Supabase score opslaan mislukt:", e);
-      status.textContent = "Online opslaan lukt nu niet. Je kunt gewoon verder spelen.";
+      status.textContent = "Online opslaan lukt nu niet. Probeer het opnieuw.";
       status.className = "save-status err";
       button.disabled = false;
+      cancel.disabled = false;
       input.disabled = false;
+      input.focus();
     }
   };
+
+  input.focus();
 }
 
 function showScoreboard(selectedMode = "easy") {
@@ -1358,23 +1382,28 @@ function winner() {
   $("switch").onclick = showMenu;
 }
 
-function gameOver() {
-  playSound("out");
+function renderGameOver() {
   const hs = getHigh();
   const isNew = state.score >= hs && state.score > 0;
   $("qwrap").style.display = "none";
   $("panel").innerHTML = `
     <h2>Game over</h2>
     <p>Je had er <b>${state.score}</b> goed.${isNew ? " 🎉 Nieuwe highscore!" : " Highscore: <b>" + hs + "</b>"}</p>
-    <div class="savebox-wrap"></div>
     <div class="row">
       <button class="btn" id="again">Opnieuw spelen</button>
       <button class="btn ghost" id="switch">Ander niveau</button>
-    </div>`;
+    </div>
+    <button class="btn save-trigger" id="saveScoreOpen">Score opslaan</button>`;
+
   $("overlay").style.display = "flex";
-  showSaveBox();
   $("again").onclick = () => startGame(state.mode);
   $("switch").onclick = showMenu;
+  $("saveScoreOpen").onclick = showSaveBox;
+}
+
+function gameOver() {
+  playSound("out");
+  renderGameOver();
 }
 
 function showMenu() {
