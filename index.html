@@ -1259,7 +1259,7 @@ function showPickedName(idx) {
 function startGame(mode) {
   clearTimeout(roundTimer);
   markLayer.clearLayers(); hiLayer.clearLayers();
-  state = { mode, lives: LIVES, score: 0, used: new Set(), solved: new Set(), target: -1, locked: false };
+  state = { mode, lives: LIVES, score: 0, visited: new Set(), target: -1, locked: false };
   $("overlay").style.display = "none";
   $("qwrap").style.display = "flex";
   $("modechip").textContent = { easy: "Easy", normal: "Normal", hard: "Hard" }[mode] + " · menu";
@@ -1278,16 +1278,16 @@ function renderHud() {
 function nextRound() {
   if (!state) return;
 
-  // Als alle straten zijn geraden, is het spel afgelopen.
-  if (state.solved.size >= STREETS.length) {
+  // Iedere straat telt als "geweest" zodra deze is beantwoord, goed of fout.
+  // Zodra alle straten zijn geweest, is het spel afgelopen.
+  if (state.visited.size >= STREETS.length) {
     winner();
     return;
   }
 
-  if (state.used.size >= STREETS.length) state.used.clear();
+  // Kies alleen een straat die nog niet is geweest.
   let i;
-  do { i = Math.random() * STREETS.length | 0; } while (state.used.has(i));
-  state.used.add(i);
+  do { i = Math.random() * STREETS.length | 0; } while (state.visited.has(i));
   state.target = i; state.locked = false;
   const name = STREETS[i].name;
 
@@ -1302,7 +1302,8 @@ function nextRound() {
     $("qlabel").textContent = "Welke straat is oranje gemarkeerd?";
     $("qtext").textContent = "Kies het juiste antwoord";
     highlight(i);
-    const others = shuffle(STREETS.map((s, k) => k).filter(k => k !== i && !state.solved.has(k))).slice(0, 3);
+    // Ook straten die al eerder goed of fout zijn beantwoord mogen als antwoordoptie terugkomen.
+    const others = shuffle(STREETS.map((s, k) => k).filter(k => k !== i)).slice(0, 3);
     const opts = shuffle([i, ...others]);
     $("choices").style.display = "grid";
     opts.forEach(k => {
@@ -1342,11 +1343,13 @@ function answer(correct, pickedIdx) {
   const t = state.target, name = STREETS[t].name;
   markStreet(t, correct);
 
+  // Een straat is na het beantwoorden altijd "geweest".
+  // Goed antwoord = punt; fout antwoord = geen punt.
+  state.visited.add(t);
+
   if (correct) {
     playSound("good");
     state.score++;
-    // Een straat telt in iedere spelmodus mee als deze goed is geraden.
-    state.solved.add(t);
     const hs = getHigh();
     if (state.score > hs) setHigh(state.mode, state.score);
     toast("Goed! " + name, 1600);
@@ -1358,8 +1361,13 @@ function answer(correct, pickedIdx) {
     state.lives--;
     renderHud();
     toast("Helaas! Het juiste antwoord was: " + name, 3000);
-    if (state.lives <= 0) roundTimer = setTimeout(gameOver, 3000);
-    else roundTimer = setTimeout(nextRound, 2600);
+    if (state.visited.size >= STREETS.length) {
+      roundTimer = setTimeout(winner, 3000);
+    } else if (state.lives <= 0) {
+      roundTimer = setTimeout(gameOver, 3000);
+    } else {
+      roundTimer = setTimeout(nextRound, 2600);
+    }
   }
 }
 
