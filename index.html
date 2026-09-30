@@ -1378,16 +1378,17 @@ function winner() {
   $("panel").innerHTML = `
     <h2 class="winner-title">YOU WIN</h2>
     <p class="winner-subtitle">jij bent een echte heesche kenner</p>
-    <p>Je hebt alle <b>${STREETS.length}</b> straten goed geraden!</p>
+    <p>Je had er <b>${state.score}</b> goed van de <b>${STREETS.length}</b> straten.</p>
     <div class="savebox-wrap"></div>
     <div class="row">
       <button class="btn" id="again">Opnieuw spelen</button>
       <button class="btn ghost" id="switch">Ander niveau</button>
-    </div>`;
+    </div>
+    <button class="btn save-trigger" id="saveScoreOpen">Score opslaan</button>`;
   $("overlay").style.display = "flex";
-  showSaveBox();
   $("again").onclick = () => startGame(state.mode);
   $("switch").onclick = showMenu;
+  $("saveScoreOpen").onclick = showSaveBox;
 }
 
 function renderGameOver() {
