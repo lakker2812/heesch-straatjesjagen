@@ -898,7 +898,8 @@ async function loadOnlineScores(mode) {
       .select("player_name,mode,score,created_at")
       .eq("mode", mode)
       .order("score", { ascending: false })
-      .order("created_at", { ascending: true }),
+      .order("created_at", { ascending: true })
+      .limit(100),
     7000
   );
   if (error) throw error;
@@ -988,7 +989,6 @@ function showScoreboard(selectedMode = "easy") {
 
   $("panel").innerHTML = `
     <h2>Scorebord</h2>
-    <p>Top 10 van alle spelers</p>
     <div class="scoreboard-tabs">
       <button data-score-mode="easy">Easy</button>
       <button data-score-mode="normal">Normal</button>
